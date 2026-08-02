@@ -108,6 +108,10 @@ class _PlanEditorPageState extends State<PlanEditorPage> {
         if (!didPop) _requestExit();
       },
       child: Scaffold(
+        // The plan title field lives above the grid, so the keyboard may cover
+        // part of the grid viewport but must never resize its time axis.
+        // Template-event editors handle their own keyboard insets below.
+        resizeToAvoidBottomInset: false,
         appBar: AppBar(
           title: Text(
               widget.plan == null ? 'New weekly plan' : 'Edit weekly plan'),
@@ -291,103 +295,108 @@ class _PlanEditorPageState extends State<PlanEditorPage> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       builder: (sheetContext) => StatefulBuilder(
         builder: (context, setSheetState) => SafeArea(
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(
-              24,
-              24,
-              24,
-              MediaQuery.viewInsetsOf(context).bottom + 24,
+          child: AnimatedPadding(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.viewInsetsOf(context).bottom,
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${_weekday(weekday)} · ${current == null ? 'New template event' : 'Edit template event'}',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 14),
-                TextFormField(
-                  initialValue: title,
-                  autofocus: true,
-                  decoration: const InputDecoration(labelText: 'Event name'),
-                  onChanged: (value) => title = value,
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _TimeButton(
-                        label: 'Start',
-                        minute: start,
-                        onTap: () async {
-                          final value = await _timePicker(context, start);
-                          if (value == null || !context.mounted) return;
-                          setSheetState(() {
-                            start = value;
-                            if (end <= start) end = start + 1;
-                          });
-                        },
-                      ),
-                    ),
-                    Expanded(
-                      child: _TimeButton(
-                        label: 'End',
-                        minute: end,
-                        onTap: () async {
-                          final value = await _timePicker(context, end);
-                          if (value == null || !context.mounted) return;
-                          setSheetState(() {
-                            end = value;
-                            if (end <= start) start = end - 1;
-                          });
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                EventTypeTabs(
-                  value: type,
-                  onChanged: (value) => setSheetState(() => type = value),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: () {
-                      if (title.trim().isEmpty || end <= start) return;
-                      if (!_canPlaceTemplate(
-                        weekday: weekday,
-                        startMinute: start,
-                        endMinute: end,
-                        excludingId: current?.id,
-                      )) {
-                        return;
-                      }
-                      setState(() {
-                        _templates
-                            .removeWhere((item) => item.id == current?.id);
-                        _templates.add(
-                          WeekTemplate(
-                            id: current?.id ?? _uuid.v4(),
-                            planId: _planId,
-                            title: title.trim(),
-                            weekday: weekday,
-                            type: type,
-                            startMinute: start,
-                            endMinute: end,
-                          ),
-                        );
-                      });
-                      Navigator.pop(sheetContext);
-                    },
-                    child: const Text('Save event'),
+            child: SingleChildScrollView(
+              key: const ValueKey('template-event-editor-scroll'),
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${_weekday(weekday)} · ${current == null ? 'New template event' : 'Edit template event'}',
+                    style: Theme.of(context).textTheme.titleLarge,
                   ),
-                ),
-              ],
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    initialValue: title,
+                    autofocus: true,
+                    decoration: const InputDecoration(labelText: 'Event name'),
+                    onChanged: (value) => title = value,
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _TimeButton(
+                          label: 'Start',
+                          minute: start,
+                          onTap: () async {
+                            final value = await _timePicker(context, start);
+                            if (value == null || !context.mounted) return;
+                            setSheetState(() {
+                              start = value;
+                              if (end <= start) end = start + 1;
+                            });
+                          },
+                        ),
+                      ),
+                      Expanded(
+                        child: _TimeButton(
+                          label: 'End',
+                          minute: end,
+                          onTap: () async {
+                            final value = await _timePicker(context, end);
+                            if (value == null || !context.mounted) return;
+                            setSheetState(() {
+                              end = value;
+                              if (end <= start) start = end - 1;
+                            });
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  EventTypeTabs(
+                    value: type,
+                    onChanged: (value) => setSheetState(() => type = value),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: () {
+                        if (title.trim().isEmpty || end <= start) return;
+                        if (!_canPlaceTemplate(
+                          weekday: weekday,
+                          startMinute: start,
+                          endMinute: end,
+                          excludingId: current?.id,
+                        )) {
+                          return;
+                        }
+                        setState(() {
+                          _templates
+                              .removeWhere((item) => item.id == current?.id);
+                          _templates.add(
+                            WeekTemplate(
+                              id: current?.id ?? _uuid.v4(),
+                              planId: _planId,
+                              title: title.trim(),
+                              weekday: weekday,
+                              type: type,
+                              startMinute: start,
+                              endMinute: end,
+                            ),
+                          );
+                        });
+                        Navigator.pop(sheetContext);
+                      },
+                      child: const Text('Save event'),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -600,43 +609,43 @@ class _TemplateWeekTimeline extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: List.generate(
-            7,
-            (index) {
-              final weekday = index + 1;
-              return SizedBox(
-                width: 188,
-                child: Column(
-                  children: [
-                    Text(
-                      _weekday(weekday),
-                      style: Theme.of(context).textTheme.titleSmall,
-                    ),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      height: 500,
-                      child: SingleChildScrollView(
-                        child: _TemplateDayAxis(
-                          weekday: weekday,
-                          timeline: timeline,
-                          templates: templates
-                              .where((item) => item.weekday == weekday)
-                              .toList(),
-                          onCreate: onCreate,
-                          onEdit: onEdit,
-                          onActions: onActions,
-                          onMove: onMove,
-                        ),
+        key: const ValueKey('template-week-vertical-scroll'),
+        child: SingleChildScrollView(
+          key: const ValueKey('template-week-horizontal-scroll'),
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: List.generate(
+              7,
+              (index) {
+                final weekday = index + 1;
+                return SizedBox(
+                  width: 188,
+                  child: Column(
+                    children: [
+                      Text(
+                        _weekday(weekday),
+                        style: Theme.of(context).textTheme.titleSmall,
                       ),
-                    ),
-                  ],
-                ),
-              );
-            },
+                      const SizedBox(height: 8),
+                      _TemplateDayAxis(
+                        key: ValueKey('template-day-axis-$weekday'),
+                        weekday: weekday,
+                        timeline: timeline,
+                        templates: templates
+                            .where((item) => item.weekday == weekday)
+                            .toList(),
+                        onCreate: onCreate,
+                        onEdit: onEdit,
+                        onActions: onActions,
+                        onMove: onMove,
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
           ),
         ),
       );
@@ -644,6 +653,7 @@ class _TemplateWeekTimeline extends StatelessWidget {
 
 class _TemplateDayAxis extends StatelessWidget {
   const _TemplateDayAxis({
+    super.key,
     required this.weekday,
     required this.timeline,
     required this.templates,

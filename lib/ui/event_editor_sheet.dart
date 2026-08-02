@@ -21,6 +21,7 @@ Future<void> showEventEditorSheet(
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       builder: (_) => _EventEditorSheet(
         date: date,
         initialStart: initialStart,
@@ -154,14 +155,16 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
   }
 
   @override
-  Widget build(BuildContext context) => SafeArea(
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(
-            24,
-            24,
-            24,
-            MediaQuery.viewInsetsOf(context).bottom + 24,
-          ),
+  Widget build(BuildContext context) {
+    final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
+    return SafeArea(
+      child: AnimatedPadding(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        padding: EdgeInsets.only(bottom: keyboardInset),
+        child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -218,7 +221,9 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
             ],
           ),
         ),
-      );
+      ),
+    );
+  }
 }
 
 class _TimeButton extends StatelessWidget {

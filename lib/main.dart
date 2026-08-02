@@ -7,6 +7,7 @@ import 'data/plan_repository.dart';
 import 'state/app_preferences.dart';
 import 'state/plan_controller.dart';
 import 'ui/app_shell.dart';
+import 'ui/brand_splash.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -50,7 +51,7 @@ class CadenceApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final preferences = context.watch<AppPreferences>();
     return MaterialApp(
-      title: 'Cadence',
+      title: 'WeekPlanner',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
@@ -152,7 +153,7 @@ class CadenceApp extends StatelessWidget {
       ),
       darkTheme: _cadenceDarkTheme(),
       themeMode: preferences.themeMode,
-      home: const AppShell(),
+      home: const BrandSplash(next: AppShell()),
     );
   }
 }

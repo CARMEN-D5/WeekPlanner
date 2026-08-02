@@ -332,6 +332,18 @@ class _Header extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
               child: Row(
                 children: [
+                  ClipOval(
+                    child: Image.asset(
+                      Theme.of(context).brightness == Brightness.dark
+                          ? 'assets/branding/avatar_dark.png'
+                          : 'assets/branding/avatar_light.png',
+                      width: 40,
+                      height: 40,
+                      fit: BoxFit.cover,
+                      semanticLabel: 'WeekPlanner',
+                    ),
+                  ),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,

@@ -10,6 +10,7 @@ Future<int?> showTimeWheelPicker(
     showModalBottomSheet<int>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       builder: (_) => _TimeWheelSheet(
         initialMinute: initialMinute,
         title: title,
@@ -82,8 +83,15 @@ class _TimeWheelSheetState extends State<_TimeWheelSheet> {
   }
 
   @override
-  Widget build(BuildContext context) => SafeArea(
-        child: Padding(
+  Widget build(BuildContext context) {
+    final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
+    return SafeArea(
+      child: AnimatedPadding(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        padding: EdgeInsets.only(bottom: keyboardInset),
+        child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -147,7 +155,9 @@ class _TimeWheelSheetState extends State<_TimeWheelSheet> {
             ],
           ),
         ),
-      );
+      ),
+    );
+  }
 }
 
 class _NumberInput extends StatelessWidget {

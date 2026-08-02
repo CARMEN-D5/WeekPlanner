@@ -3,8 +3,8 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../domain/plan_item.dart';
-import '../state/app_preferences.dart';
 import '../state/plan_controller.dart';
+import 'about_page.dart';
 import 'plan_editor_page.dart';
 import 'timeline_editor_page.dart';
 
@@ -19,7 +19,6 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<PlanController>();
-    final preferences = context.watch<AppPreferences>();
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
@@ -70,12 +69,23 @@ class _SettingsPageState extends State<SettingsPage> {
             title: const Text('Task reminders'),
             subtitle: Text(
                 reminder ? 'Reminders are enabled' : 'Reminders are disabled')),
-        SwitchListTile(
-            value: preferences.isDarkMode,
-            onChanged: preferences.setDarkMode,
-            secondary: const Icon(Icons.dark_mode_outlined),
-            title: const Text('Dark mode'),
-            subtitle: const Text('Use a dark color theme')),
+        const ListTile(
+          leading: Icon(Icons.brightness_auto_outlined),
+          title: Text('Appearance'),
+          subtitle: Text('Follows your device light or dark theme'),
+        ),
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.info_outline),
+            title: const Text('About WeekPlanner'),
+            subtitle: const Text('Version and brand information'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AboutPage()),
+            ),
+          ),
+        ),
       ],
     );
   }

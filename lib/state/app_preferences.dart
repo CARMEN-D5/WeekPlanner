@@ -4,15 +4,7 @@ import 'package:flutter/material.dart';
 /// MaterialApp so changing the theme never replaces the provider that owns
 /// plan data or any open page.
 class AppPreferences extends ChangeNotifier {
-  ThemeMode _themeMode = ThemeMode.light;
+  final ThemeMode _themeMode = ThemeMode.system;
 
   ThemeMode get themeMode => _themeMode;
-  bool get isDarkMode => _themeMode == ThemeMode.dark;
-
-  void setDarkMode(bool value) {
-    final next = value ? ThemeMode.dark : ThemeMode.light;
-    if (_themeMode == next) return;
-    _themeMode = next;
-    notifyListeners();
-  }
 }
