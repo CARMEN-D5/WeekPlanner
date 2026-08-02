@@ -128,4 +128,4 @@ Cadence is an early-stage (`0.1.0`) local-first application. Core plan editing, 
 
 ## License
 
-This repository does not currently include a license file. Until a license is added, the source code is not granted for reuse, modification, or redistribution. Add an OSI-approved license before accepting external contributions or distributing the project as open source.
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
