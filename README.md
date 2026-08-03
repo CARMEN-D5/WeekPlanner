@@ -1,131 +1,202 @@
-# Cadence
+<div align="center">
 
-Cadence is a local-first Flutter application for turning a weekly plan into a practical daily schedule. It combines reusable weekly templates, concrete task instances, configurable timeline blocks, completion tracking, and plan history in one Android-focused app.
+# WeekPlanner
+
+### Plan the week. Adapt each day. Make every effort count.
+
+A local-first Flutter planner built around flexible weekly scheduling and a thoughtful 7-day compensation system.
+
+[![Flutter](https://img.shields.io/badge/Flutter-3.3%2B-02569B?logo=flutter&logoColor=white)](https://flutter.dev/)
+[![Dart](https://img.shields.io/badge/Dart-3.3%2B-0175C2?logo=dart&logoColor=white)](https://dart.dev/)
+[![Platform](https://img.shields.io/badge/Platform-Android-3DDC84?logo=android&logoColor=white)](https://www.android.com/)
+[![Material 3](https://img.shields.io/badge/Design-Material%203-6750A4?logo=materialdesign&logoColor=white)](https://m3.material.io/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+</div>
+
+## Overview
+
+**WeekPlanner** (app name: **Cadence**) is a personal planning and execution system that turns reusable weekly intentions into a practical daily schedule. Instead of treating every missed task as failure, it preserves context, supports recovery, and makes progress visible across daily, weekly, and monthly views.
+
+The project demonstrates end-to-end Flutter development: domain modelling, local persistence, reactive state management, responsive calendar interfaces, Material 3 theming, and automated tests—all without requiring an account or cloud service.
+
+## Design Philosophy
+
+### Flexible weekly planning
+
+Real weeks rarely unfold exactly as planned. WeekPlanner separates the **weekly template** from its generated **daily task instances**, allowing a plan to remain structured while its execution stays adaptable. Fixed commitments, focused tasks, and buffer periods share one continuous timeline rather than being forced into rigid time-of-day buckets.
+
+### The 7-day compensation concept
+
+An unfinished task is not immediately written off. For the following seven days, it appears in the compensation view, where completing a matching task can compensate for the oldest eligible missed occurrence. The original record remains traceable, and history distinguishes normal completions from compensated completions.
+
+This creates a more humane feedback loop:
+
+1. **Plan** a realistic weekly rhythm.
+2. **Execute** tasks in day, week, or month context.
+3. **Recover** unfinished work within a seven-day window.
+4. **Reflect** using transparent completion history and trends.
 
 ## Features
 
-- Create date-bounded plans with optional weekly recurrence.
-- Build reusable templates for tasks, fixed commitments, and buffer time.
-- Materialize templates as daily task instances while preserving completed history.
-- View the same schedule by day, week, or month.
-- Configure primary timeline blocks and the gaps between them.
-- Render events continuously across blocks and gaps.
-- Move, complete, undo, and compensate eligible unfinished items.
-- Review completion totals, unfinished-title groups, and weekly trends.
-- Switch between light and dark themes.
-- Store all application data locally in SQLite.
+- **Reusable weekly plans** — Create date-bounded plans with optional weekly recurrence.
+- **Day, week, and month views** — Move between immediate focus and broader schedule context.
+- **Continuous visual timeline** — Display tasks across configurable blocks and the gaps between them.
+- **Flexible event editing** — Create, move, complete, and undo tasks while preserving history.
+- **7-day compensation workflow** — Recover eligible unfinished tasks without hiding the original outcome.
+- **Execution history** — Review completion totals, grouped unfinished tasks, and weekly trends.
+- **Plan lifecycle management** — Retain completed instances while regenerating pending work after template changes.
+- **Automatic light and dark themes** — Follow the device theme with a polished Material 3 interface.
+- **Private, local-first storage** — Keep application data on-device in SQLite.
+- **Tested domain logic** — Cover timeline rendering, conflict rules, lifecycle states, history metrics, and preferences.
+
+## Screenshots
+
+<div align="center">
+
+### Product Demo
+
+<img src="assets/screenshots/demo.gif" alt="WeekPlanner product demonstration" width="300">
+
+</div>
+
+<br>
+
+<table width="100%">
+  <tr>
+    <td width="33.33%" align="center"><strong>Daily planning</strong></td>
+    <td width="33.33%" align="center"><strong>Weekly overview</strong></td>
+    <td width="33.33%" align="center"><strong>Monthly context</strong></td>
+  </tr>
+  <tr>
+    <td width="33.33%" align="center" valign="top"><img src="assets/screenshots/daily.jpg" alt="WeekPlanner daily view" width="260" height="558"></td>
+    <td width="33.33%" align="center" valign="top"><img src="assets/screenshots/weekly.jpg" alt="WeekPlanner weekly view" width="260" height="558"></td>
+    <td width="33.33%" align="center" valign="top"><img src="assets/screenshots/monthly.jpg" alt="WeekPlanner monthly view" width="260" height="558"></td>
+  </tr>
+  <tr>
+    <td width="33.33%" align="center"><strong>Execution records</strong></td>
+    <td width="33.33%" align="center"><strong>Compensation history</strong></td>
+    <td width="33.33%" align="center"><strong>Dark mode</strong></td>
+  </tr>
+  <tr>
+    <td width="33.33%" align="center" valign="top"><img src="assets/screenshots/history_records.jpg" alt="WeekPlanner execution history" width="260" height="558"></td>
+    <td width="33.33%" align="center" valign="top"><img src="assets/screenshots/history_compensation.jpg" alt="WeekPlanner compensation history" width="260" height="558"></td>
+    <td width="33.33%" align="center" valign="top"><img src="assets/screenshots/darkmode.jpg" alt="WeekPlanner dark mode" width="260" height="558"></td>
+  </tr>
+</table>
+
+## Technology Stack
+
+| Area | Technology |
+| --- | --- |
+| Application | Flutter, Dart |
+| Interface | Material 3 |
+| State management | Provider |
+| Local persistence | SQLite via `sqflite` |
+| Date and time | `intl` |
+| Identifiers | `uuid` |
+| Quality | `flutter_test`, `flutter_lints` |
+| Target | Android |
 
 ## Architecture
 
-Cadence separates planning data from its calendar presentation.
-
-### Planning lifecycle
+WeekPlanner keeps planning intent separate from calendar execution:
 
 ```text
 Plan -> WeekTemplate -> TaskInstance
 ```
 
-- `Plan` defines a title, active date range, recurrence behavior, and lifecycle state.
-- `WeekTemplate` defines a reusable weekday event using start and end minutes.
-- `TaskInstance` is the persisted occurrence of a template. In Dart, instances are represented by `PlanItem` and stored in the `task_instances` SQLite table.
+- A `Plan` defines its name, active date range, recurrence, and lifecycle state.
+- A `WeekTemplate` describes reusable weekday events.
+- A `TaskInstance` is a persisted occurrence that can be completed, moved, or compensated.
 
-Completed instances are retained when a plan is edited. Pending future instances can be regenerated from the updated templates.
+The codebase follows a clear layered structure: domain rules remain independent of presentation, repositories own SQLite persistence and instance generation, controllers coordinate application state, and UI components render the Material 3 experience.
 
-### Timeline model
+## Installation
 
-```text
-Timeline
-|- TimelineBlock (primary named period)
-|- TimelineSegment (editable subdivision of a block)
-`- Gap (derived space between consecutive blocks)
-```
-
-Events store only their start and end minutes; they are not assigned to a morning, afternoon, or evening bucket. The shared renderer overlays events onto the timeline and keeps an event that crosses a block or gap as one continuous card. A `Gap` is calculated whenever the next ordered block starts after the previous block ends.
-
-### Application layers
-
-- `lib/domain`: planning, history, timeline, rendering, and conflict rules.
-- `lib/data`: SQLite schema, persistence, and task-instance generation.
-- `lib/state`: application controllers and presentation preferences.
-- `lib/ui`: Material 3 pages, editors, dialogs, and timeline widgets.
-
-## Technology Stack
-
-- Flutter and Dart
-- Material 3
-- Provider for state management
-- SQLite through `sqflite`
-- `intl` for date formatting
-- `uuid` for identifiers
-- `flutter_test` for automated tests
-
-## Requirements
+### Prerequisites
 
 - Flutter SDK with Dart `>=3.3.0 <4.0.0`
-- Android SDK and Android platform tools
-- JDK 17 for Android builds
-- An Android emulator or physical device for interactive use
+- Android SDK and platform tools
+- JDK 17
+- An Android emulator or physical Android device
 
-Run `flutter doctor` to confirm that the local Flutter and Android toolchains are configured.
+Confirm that the toolchain is ready:
 
-## Run Locally
+```bash
+flutter doctor
+```
 
-```powershell
+### Run locally
+
+```bash
+git clone <your-repository-url>
+cd WeekPlanner
 flutter pub get
 flutter run
 ```
 
-Select an available Android device when Flutter prompts for a target. The core unit tests do not require an emulator or physical device.
+### Run tests
 
-## Tests
-
-Format the project and run the complete automated test suite with:
-
-```powershell
+```bash
 dart format --output=none --set-exit-if-changed lib test tool
 flutter test
 ```
 
-The tests cover timeline rendering and gaps, event conflict boundaries, title normalization, plan lifecycle states, history statistics and grouping, and theme preference notifications.
+### Build a release APK
 
-## Build an APK
-
-Build a release APK with:
-
-```powershell
-flutter pub get
+```bash
 flutter build apk --release
 ```
 
-The generated package is written to:
-
-```text
-build/app/outputs/flutter-apk/app-release.apk
-```
-
-For smaller architecture-specific APKs, run `flutter build apk --release --split-per-abi`.
+The APK will be available at `build/app/outputs/flutter-apk/app-release.apk`.
 
 ## Project Structure
 
 ```text
 WeekPlanner/
-|- android/                 Android host project and Gradle configuration
-|- lib/
-|  |- data/                 SQLite repository and instance generation
-|  |- domain/               Plans, history, timelines, and rendering rules
-|  |- state/                Controllers and app preferences
-|  |- ui/                   Screens and reusable widgets
-|  `- main.dart             Application entry point
-|- test/                    Automated unit and Flutter tests
-|- tool/                    Standalone development checks
-|- analysis_options.yaml    Dart analyzer configuration
-`- pubspec.yaml             Package metadata and dependencies
+├── android/                 # Android host project and Gradle configuration
+├── assets/
+│   ├── branding/            # App icons, logos, and visual identity
+│   └── screenshots/         # README product screenshots
+├── docs/                    # Project documentation
+├── lib/
+│   ├── data/                # SQLite repository and instance generation
+│   ├── domain/              # Plans, history, timelines, and business rules
+│   ├── state/               # Controllers and application preferences
+│   ├── ui/                  # Screens, editors, dialogs, and widgets
+│   └── main.dart            # Application entry point and themes
+├── test/                    # Unit and Flutter tests
+├── tool/                    # Standalone development checks
+├── analysis_options.yaml    # Static-analysis configuration
+└── pubspec.yaml             # Package metadata and dependencies
 ```
 
-## Current Status
+## Roadmap
 
-Cadence is an early-stage (`0.1.0`) local-first application. Core plan editing, recurrence generation, timeline customization, daily/weekly/monthly views, completion and compensation flows, history summaries, and Android build configuration are implemented. The project currently targets local development and Android use; distribution metadata and platform-specific release setup are not yet included.
+- [x] Recurring weekly plans and generated daily instances
+- [x] Daily, weekly, and monthly schedule views
+- [x] Configurable continuous timelines
+- [x] Completion tracking and 7-day compensation
+- [x] Historical summaries and weekly trends
+- [x] Local SQLite persistence
+- [x] Light and dark Material 3 themes
+- [ ] Accessibility and usability refinement
+- [ ] Data export, import, and backup
+- [ ] Notification and reminder support
+- [ ] Expanded integration and widget testing
+- [ ] Production release metadata and store distribution
+
+## Documentation
+
+For the product rationale, feature walkthrough, and design details, read the [WeekPlanner Introduction](docs/WeekPlanner-Introduction.pdf).
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+This project is available under the [MIT License](LICENSE).
+
+---
+
+<div align="center">
+  Built with Flutter for people who want structure without rigidity.
+</div>
