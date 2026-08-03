@@ -122,9 +122,12 @@ class TimelineDayColumn extends StatelessWidget {
     if (box == null) return;
     final local = box.globalToLocal(globalOffset);
     final latestStart = (axisEnd - item.duration).clamp(axisStart, axisEnd - 1);
-    final minute = (axisStart + local.dy / pixelsPerMinute)
-        .round()
-        .clamp(axisStart, latestStart) as int;
+    final minute =
+        (axisStart + local.dy / pixelsPerMinute).round().clamp(
+              axisStart,
+              latestStart,
+            )
+            as int;
     try {
       await context.read<PlanController>().moveItem(item, date, minute);
     } on EventConflictException catch (error) {
@@ -158,8 +161,8 @@ class TimelineDayColumn extends StatelessWidget {
       title: isPrimary
           ? displayBlockName(segment.block!)
           : isGap
-              ? segment.gap!.label ?? ''
-              : '',
+          ? segment.gap!.label ?? ''
+          : '',
       subtitle: '${_clock(segment.startMinute)}–${_clock(segment.endMinute)}',
       color: isGap ? const Color(0xFFEEEAE5) : null,
       onTap: () => onCreate(segment.startMinute, segment.endMinute),
@@ -184,12 +187,12 @@ class TimelineDayColumn extends StatelessWidget {
     };
     final complete = item.status == PlanStatus.completed;
     _EventCardBody buildBody() => _EventCardBody(
-          item: item,
-          color: color,
-          complete: complete,
-          onTap: () => onEdit(item),
-          onActions: () => onActions(item),
-        );
+      item: item,
+      color: color,
+      complete: complete,
+      onTap: () => onEdit(item),
+      onActions: () => onActions(item),
+    );
 
     return Positioned(
       left: 8,
@@ -219,9 +222,7 @@ class TimelineDayColumn extends StatelessWidget {
         children: [
           Icon(Icons.circle, color: Color(0xFFC9A8A4), size: 9),
           SizedBox(width: 3),
-          Expanded(
-            child: Divider(color: Color(0xFFC9A8A4), thickness: 1.4),
-          ),
+          Expanded(child: Divider(color: Color(0xFFC9A8A4), thickness: 1.4)),
         ],
       ),
     );
@@ -278,8 +279,10 @@ class _AxisSegmentCard extends StatelessWidget {
                 );
               }
               return Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -331,139 +334,158 @@ class _EventCardBody extends StatelessWidget {
   final VoidCallback onActions;
 
   @override
-  Widget build(BuildContext context) => Material(
-        color: complete ? const Color(0xFFDEE5DA) : color,
-        borderRadius: BorderRadius.circular(16),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final height = constraints.maxHeight;
-              final compact = height < 36;
-              final showDetails = height >= 56;
-              final showControls = height >= 36;
-              final padding = showDetails ? 10.0 : 6.0;
-              if (compact) {
-                return Center(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
-                    child: Text(
-                      item.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        decoration:
-                            complete ? TextDecoration.lineThrough : null,
-                        color: const Color(0xFF45413D),
-                      ),
+  Widget build(BuildContext context) {
+    final controller = context.read<PlanController>();
+    final canChangeCompletion = controller.canToggleCompletion(item);
+    return Material(
+      color: complete ? const Color(0xFFDEE5DA) : color,
+      borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final height = constraints.maxHeight;
+            final compact = height < 36;
+            final showDetails = height >= 56;
+            final showControls = height >= 36;
+            final padding = showDetails ? 10.0 : 6.0;
+            if (compact) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: Text(
+                    item.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      decoration: complete ? TextDecoration.lineThrough : null,
+                      color: const Color(0xFF45413D),
                     ),
                   ),
-                );
-              }
-              return Padding(
-                padding: EdgeInsets.symmetric(
-                  horizontal: padding,
-                  vertical: showDetails ? 4 : 0,
                 ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    if (showControls && item.type != PlanType.buffer)
-                      SizedBox(
-                        width: 28,
-                        height: 28,
+              );
+            }
+            return Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: padding,
+                vertical: showDetails ? 4 : 0,
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  if (showControls && item.type != PlanType.buffer)
+                    SizedBox(
+                      width: 28,
+                      height: 28,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: canChangeCompletion
+                            ? null
+                            : () => ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'This event is outside the 7-day completion window.',
+                                  ),
+                                ),
+                              ),
                         child: Checkbox(
                           value: complete,
                           materialTapTargetSize:
                               MaterialTapTargetSize.shrinkWrap,
                           visualDensity: VisualDensity.compact,
-                          onChanged: (_) async {
-                            final controller = context.read<PlanController>();
-                            try {
-                              if (complete) {
-                                await controller.undoComplete(item);
-                              } else {
-                                await controller.complete(item);
-                              }
-                            } catch (_) {
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content:
-                                        Text('Save failed. Please try again.'),
-                                  ),
-                                );
-                              }
-                            }
-                          },
+                          onChanged: canChangeCompletion
+                              ? (_) async {
+                                  try {
+                                    if (complete) {
+                                      await controller.undoComplete(item);
+                                    } else {
+                                      await controller.complete(item);
+                                    }
+                                  } catch (_) {
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'Save failed. Please try again.',
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  }
+                                }
+                              : null,
                         ),
                       ),
-                    if (showControls && item.type != PlanType.buffer)
-                      const SizedBox(width: 3),
-                    Expanded(
-                      child: showDetails
-                          ? Column(
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                _eventTitle(item, complete, 13),
-                                Text(
-                                  '${_clock(item.startMinute)}–${_clock(item.endMinute)} · ${_typeLabel(item.type)}',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontSize: 10,
-                                    color: Color(0xFF88817A),
-                                  ),
-                                ),
-                              ],
-                            )
-                          : _eventTitle(item, complete, 11),
                     ),
-                    if (showControls)
-                      SizedBox(
-                        width: 28,
-                        height: 28,
-                        child: IconButton(
-                          padding: EdgeInsets.zero,
-                          visualDensity: VisualDensity.compact,
-                          tooltip: 'More actions',
-                          iconSize: 18,
-                          onPressed: onActions,
-                          icon: const Icon(Icons.more_horiz),
-                        ),
+                  if (showControls && item.type != PlanType.buffer)
+                    const SizedBox(width: 3),
+                  Expanded(
+                    child: showDetails
+                        ? Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              _eventTitle(item, complete, 13),
+                              Text(
+                                '${_clock(item.startMinute)}–${_clock(item.endMinute)} · ${_typeLabel(item.type)}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  color: Color(0xFF88817A),
+                                ),
+                              ),
+                            ],
+                          )
+                        : _eventTitle(item, complete, 11),
+                  ),
+                  if (showControls)
+                    SizedBox(
+                      width: 28,
+                      height: 28,
+                      child: IconButton(
+                        padding: EdgeInsets.zero,
+                        visualDensity: VisualDensity.compact,
+                        tooltip: 'More actions',
+                        iconSize: 18,
+                        onPressed: onActions,
+                        icon: const Icon(Icons.more_horiz),
                       ),
-                  ],
-                ),
-              );
-            },
-          ),
+                    ),
+                ],
+              ),
+            );
+          },
         ),
-      );
+      ),
+    );
+  }
 }
 
 Widget _eventTitle(PlanItem item, bool complete, double fontSize) => Text(
-      item.title,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: TextStyle(
-        fontSize: fontSize,
-        fontWeight: FontWeight.w700,
-        decoration: complete ? TextDecoration.lineThrough : null,
-        color: const Color(0xFF45413D),
-      ),
-    );
+  item.title,
+  maxLines: 1,
+  overflow: TextOverflow.ellipsis,
+  style: TextStyle(
+    fontSize: fontSize,
+    fontWeight: FontWeight.w700,
+    decoration: complete ? TextDecoration.lineThrough : null,
+    color: const Color(0xFF45413D),
+  ),
+);
 
 String _clock(int minute) =>
     '${(minute ~/ 60).toString().padLeft(2, '0')}:${(minute % 60).toString().padLeft(2, '0')}';
 
 String _typeLabel(PlanType type) => switch (type) {
-      PlanType.task => 'Task',
-      PlanType.buffer => 'Buffer',
-      PlanType.fixed => 'Fixed',
-    };
+  PlanType.task => 'Task',
+  PlanType.buffer => 'Buffer',
+  PlanType.fixed => 'Fixed',
+};

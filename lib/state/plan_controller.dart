@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
 import '../data/plan_repository.dart';
+import '../domain/app_date_context.dart';
 import '../domain/plan_item.dart';
 import '../domain/timeline.dart';
 import '../domain/timeline_render.dart';
@@ -22,26 +23,25 @@ class DayTimelineState {
   });
 
   factory DayTimelineState.loading(DateTime selectedDate) => DayTimelineState._(
-        selectedDate: selectedDate,
-        timeline: null,
-        items: const [],
-        plans: const [],
-        isLoading: true,
-      );
+    selectedDate: selectedDate,
+    timeline: null,
+    items: const [],
+    plans: const [],
+    isLoading: true,
+  );
 
   factory DayTimelineState.ready({
     required DateTime selectedDate,
     required TimelineModel timeline,
     required List<PlanItem> items,
     required List<Plan> plans,
-  }) =>
-      DayTimelineState._(
-        selectedDate: selectedDate,
-        timeline: timeline,
-        items: List.unmodifiable(items),
-        plans: List.unmodifiable(plans),
-        isLoading: false,
-      );
+  }) => DayTimelineState._(
+    selectedDate: selectedDate,
+    timeline: timeline,
+    items: List.unmodifiable(items),
+    plans: List.unmodifiable(plans),
+    isLoading: false,
+  );
 
   factory DayTimelineState.failed(DateTime selectedDate, Object error) =>
       DayTimelineState._(
@@ -63,13 +63,13 @@ class DayTimelineState {
   bool get isReady => !isLoading && error == null && timeline != null;
 
   DayTimelineState withItems(List<PlanItem> value) => DayTimelineState._(
-        selectedDate: selectedDate,
-        timeline: timeline,
-        items: List.unmodifiable(value),
-        plans: plans,
-        isLoading: isLoading,
-        error: error,
-      );
+    selectedDate: selectedDate,
+    timeline: timeline,
+    items: List.unmodifiable(value),
+    plans: plans,
+    isLoading: isLoading,
+    error: error,
+  );
 }
 
 /// Owns one complete timeline snapshot. The UI only leaves its loading state
@@ -86,6 +86,7 @@ class PlanController extends ChangeNotifier {
 
   late DateTime selectedDate;
   List<PlanItem> items = [];
+  List<PlanItem> historyItems = [];
   List<Plan> plans = [];
   TimelineModel? timeline;
   bool loading = true;
@@ -97,6 +98,14 @@ class PlanController extends ChangeNotifier {
   bool isChangingDate = false;
 
   bool isUpdatingEvent(String id) => _updatingEventIds.contains(id);
+
+  AppDateContext get dateContext =>
+      AppDateContext.now(selectedCalendarDate: selectedDate);
+  DateTime get systemToday => dateContext.systemToday;
+
+  bool canToggleCompletion(PlanItem item) =>
+      item.countsForCompletion &&
+      isWithinCompletionWindow(item.date, systemToday);
 
   /// The app stores and compares calendar days in local time only. In
   /// particular, no query should inherit the current hour/minute or UTC date.
@@ -149,14 +158,23 @@ class PlanController extends ChangeNotifier {
       // The repository filters by its indexed date column. Loading the current
       // month plus a one-week margin is enough for day/week/month views and is
       // far cheaper than generating and filtering several months in Dart.
-      final rangeStart = DateTime(requestedDate.year, requestedDate.month, 1)
-          .subtract(const Duration(days: 7));
-      final rangeEnd = DateTime(requestedDate.year, requestedDate.month + 1, 0)
-          .add(const Duration(days: 7));
+      final rangeStart = DateTime(
+        requestedDate.year,
+        requestedDate.month,
+        1,
+      ).subtract(const Duration(days: 7));
+      final rangeEnd = DateTime(
+        requestedDate.year,
+        requestedDate.month + 1,
+        0,
+      ).add(const Duration(days: 7));
       final loadedTimeline = await _repository.fetchTimeline();
-      final loadedItems =
-          await _repository.fetchInstances(rangeStart, rangeEnd);
+      final loadedItems = await _repository.fetchInstances(
+        rangeStart,
+        rangeEnd,
+      );
       final loadedPlans = await _repository.fetchPlans();
+      final loadedHistoryItems = await _fetchHistoryItems();
 
       // A newer date request won while this query was in flight.
       if (_disposed || generation != _loadGeneration) return;
@@ -165,6 +183,7 @@ class PlanController extends ChangeNotifier {
       timeline = loadedTimeline;
       items = List.unmodifiable(loadedItems);
       plans = List.unmodifiable(loadedPlans);
+      historyItems = List.unmodifiable(loadedHistoryItems);
       loading = false;
       isChangingDate = false;
       dayState = DayTimelineState.ready(
@@ -211,23 +230,48 @@ class PlanController extends ChangeNotifier {
     required int startMinute,
     required int endMinute,
     String? excludingId,
-  }) =>
-      itemsForDay(date)
-          .where(
-            (item) =>
-                item.id != excludingId &&
-                eventsOverlap(
-                  startMinute: startMinute,
-                  endMinute: endMinute,
-                  otherStartMinute: item.startMinute,
-                  otherEndMinute: item.endMinute,
-                ),
-          )
-          .toList();
+  }) => itemsForDay(date)
+      .where(
+        (item) =>
+            item.id != excludingId &&
+            eventsOverlap(
+              startMinute: startMinute,
+              endMinute: endMinute,
+              otherStartMinute: item.startMinute,
+              otherEndMinute: item.endMinute,
+            ),
+      )
+      .toList();
 
   Future<void> changeDate(DateTime value) async {
     await loadDay(value);
   }
+
+  Future<void> jumpToToday() => loadDay(systemToday);
+
+  Future<List<PlanItem>> _fetchHistoryItems() {
+    final today = systemToday;
+    final start = DateTime(
+      today.year,
+      today.month,
+      1,
+    ).subtract(const Duration(days: 7));
+    final end = DateTime(today.year, today.month + 1, 0);
+    return _repository.fetchInstances(start, end);
+  }
+
+  Future<void> refreshHistoryData() async {
+    historyItems = List.unmodifiable(await _fetchHistoryItems());
+    plans = List.unmodifiable(await _repository.fetchPlans());
+    _notifyIfAlive();
+  }
+
+  List<PlanItem> historyItemsForMonth(DateTime month) => historyItems
+      .where(
+        (item) =>
+            item.date.year == month.year && item.date.month == month.month,
+      )
+      .toList();
 
   Future<void> addItem({
     required String title,
@@ -288,9 +332,11 @@ class PlanController extends ChangeNotifier {
   Future<void> undoComplete(PlanItem item) => _setCompletion(item, false);
 
   List<PlanItem> compensationCandidates({DateTime? referenceDate}) {
-    final reference = _day(referenceDate ?? selectedDate);
+    // History always uses the device's real local day. The optional argument
+    // is retained for source compatibility but intentionally ignored.
+    final reference = systemToday;
     final cutoff = reference.subtract(const Duration(days: 7));
-    return items
+    return historyItems
         .where(
           (item) =>
               item.countsForCompletion &&
@@ -317,10 +363,11 @@ class PlanController extends ChangeNotifier {
     );
     final completed = candidate.copyWith(
       status: PlanStatus.completed,
-      compensatedById: 'extra_${_uuid.v4()}',
+      compensatedById: 'compensation:${candidate.id}',
       completedAt: DateTime.now(),
     );
     _upsertItemLocally(completed);
+    _upsertHistoryItem(completed);
     try {
       await _repository.saveInstance(completed);
     } catch (_) {
@@ -352,7 +399,26 @@ class PlanController extends ChangeNotifier {
   }
 
   Future<void> saveTimeline(TimelineModel value) async {
+    final current = timeline;
+    if (current != null) {
+      await _repository.preserveMissingPlanTimelineSnapshots(current);
+    }
     await _repository.saveTimeline(value);
+    _dayCache.clear();
+    await loadDay(selectedDate);
+  }
+
+  Future<List<TimelineTemplateConflict>> timelineConflicts(
+    TimelineModel value,
+  ) => _repository.timelineConflicts(value);
+
+  Future<void> saveTimelineAndApplyToExisting(TimelineModel value) async {
+    final current = timeline;
+    if (current != null) {
+      await _repository.preserveMissingPlanTimelineSnapshots(current);
+    }
+    await _repository.saveTimeline(value);
+    await _repository.applyTimelineToActiveAndUpcomingPlans(value);
     _dayCache.clear();
     await loadDay(selectedDate);
   }
@@ -398,27 +464,47 @@ class PlanController extends ChangeNotifier {
 
   Future<void> _setCompletion(PlanItem item, bool completed) async {
     if (_updatingEventIds.contains(item.id)) return;
+    if (!canToggleCompletion(item)) {
+      throw const CompletionWindowException();
+    }
     final previous = _itemById(item.id) ?? item;
+    final isPast = _day(previous.date).isBefore(systemToday);
     final next = completed
         ? previous.copyWith(
             status: PlanStatus.completed,
+            compensatedById: isPast ? 'compensation:${previous.id}' : null,
             completedAt: DateTime.now(),
           )
         : previous.copyWith(
             status: PlanStatus.pending,
             clearCompletion: true,
+            clearCompensation: true,
           );
     _updatingEventIds.add(item.id);
     _upsertItemLocally(next);
+    _upsertHistoryItem(next);
     try {
       await _repository.saveInstance(next);
     } catch (_) {
       _upsertItemLocally(previous);
+      _upsertHistoryItem(previous);
       rethrow;
     } finally {
       _updatingEventIds.remove(item.id);
       _notifyIfAlive();
     }
+  }
+
+  void _upsertHistoryItem(PlanItem item) {
+    final next = List<PlanItem>.of(historyItems);
+    final index = next.indexWhere((value) => value.id == item.id);
+    if (index < 0) {
+      next.add(item);
+    } else {
+      next[index] = item;
+    }
+    historyItems = List.unmodifiable(next);
+    _notifyIfAlive();
   }
 
   PlanItem? _itemById(String id) {
@@ -514,8 +600,9 @@ class PlanController extends ChangeNotifier {
       final eventCount = state.items
           .where((item) => _sameDay(item.date, state.selectedDate))
           .length;
-      final activePlans =
-          state.plans.where((plan) => plan.contains(state.selectedDate));
+      final activePlans = state.plans.where(
+        (plan) => plan.contains(state.selectedDate),
+      );
       final activePlan = activePlans.isEmpty ? null : activePlans.first;
       final segmentCount = buildTimelineSegments<PlanItem>(
         timeline: loadedTimeline,
@@ -539,4 +626,8 @@ class PlanController extends ChangeNotifier {
       return true;
     }());
   }
+}
+
+class CompletionWindowException implements Exception {
+  const CompletionWindowException();
 }

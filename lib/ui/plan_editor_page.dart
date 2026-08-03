@@ -59,8 +59,9 @@ class _PlanEditorPageState extends State<PlanEditorPage> {
 
   Future<void> _loadTemplates() async {
     setState(() => _loading = true);
-    final templates =
-        await context.read<PlanController>().templatesFor(_planId);
+    final templates = await context.read<PlanController>().templatesFor(
+      _planId,
+    );
     if (mounted) {
       setState(() {
         _templates = templates;
@@ -73,19 +74,20 @@ class _PlanEditorPageState extends State<PlanEditorPage> {
   bool get _isDirty => _draftFingerprint() != _savedFingerprint;
 
   String _draftFingerprint() {
-    final entries = _templates
-        .map(
-          (item) => [
-            item.id,
-            item.title,
-            item.weekday,
-            item.type.name,
-            item.startMinute,
-            item.endMinute,
-          ].join(':'),
-        )
-        .toList()
-      ..sort();
+    final entries =
+        _templates
+            .map(
+              (item) => [
+                item.id,
+                item.title,
+                item.weekday,
+                item.type.name,
+                item.startMinute,
+                item.endMinute,
+              ].join(':'),
+            )
+            .toList()
+          ..sort();
     return [
       _title.text,
       _start.toIso8601String(),
@@ -101,7 +103,8 @@ class _PlanEditorPageState extends State<PlanEditorPage> {
 
   @override
   Widget build(BuildContext context) {
-    final timeline = context.watch<PlanController>().timeline;
+    final globalTimeline = context.watch<PlanController>().timeline;
+    final timeline = widget.plan?.timelineSnapshot ?? globalTimeline;
     return PopScope(
       canPop: _allowPop || !_isDirty,
       onPopInvokedWithResult: (didPop, result) {
@@ -114,7 +117,8 @@ class _PlanEditorPageState extends State<PlanEditorPage> {
         resizeToAvoidBottomInset: false,
         appBar: AppBar(
           title: Text(
-              widget.plan == null ? 'New weekly plan' : 'Edit weekly plan'),
+            widget.plan == null ? 'New weekly plan' : 'Edit weekly plan',
+          ),
           actions: [
             TextButton(
               onPressed: _loading ? null : _save,
@@ -138,7 +142,8 @@ class _PlanEditorPageState extends State<PlanEditorPage> {
                   if (_copySource != null)
                     MaterialBanner(
                       content: Text(
-                          'Copying “${_copySource!.title}”. Tap a target time slot.'),
+                        'Copying “${_copySource!.title}”. Tap a target time slot.',
+                      ),
                       actions: [
                         TextButton(
                           onPressed: () => setState(() => _copySource = null),
@@ -171,17 +176,13 @@ class _PlanEditorPageState extends State<PlanEditorPage> {
         content: const Text('Changes to this plan have not been saved.'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(
-              dialogContext,
-              _UnsavedExitAction.keepEditing,
-            ),
+            onPressed: () =>
+                Navigator.pop(dialogContext, _UnsavedExitAction.keepEditing),
             child: const Text('Keep editing'),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(
-              dialogContext,
-              _UnsavedExitAction.discard,
-            ),
+            onPressed: () =>
+                Navigator.pop(dialogContext, _UnsavedExitAction.discard),
             child: const Text('Discard changes'),
           ),
           FilledButton(
@@ -376,8 +377,9 @@ class _PlanEditorPageState extends State<PlanEditorPage> {
                           return;
                         }
                         setState(() {
-                          _templates
-                              .removeWhere((item) => item.id == current?.id);
+                          _templates.removeWhere(
+                            (item) => item.id == current?.id,
+                          );
                           _templates.add(
                             WeekTemplate(
                               id: current?.id ?? _uuid.v4(),
@@ -430,8 +432,10 @@ class _PlanEditorPageState extends State<PlanEditorPage> {
               leading: const Icon(Icons.delete_outline),
               title: const Text('Delete'),
               onTap: () {
-                setState(() =>
-                    _templates.removeWhere((item) => item.id == template.id));
+                setState(
+                  () =>
+                      _templates.removeWhere((item) => item.id == template.id),
+                );
                 Navigator.pop(sheetContext);
               },
             ),
@@ -442,16 +446,20 @@ class _PlanEditorPageState extends State<PlanEditorPage> {
   }
 
   void _editTemplate(WeekTemplate template) => _eventSheet(
-        template.weekday,
-        template.startMinute,
-        template.endMinute,
-        current: template,
-      );
+    template.weekday,
+    template.startMinute,
+    template.endMinute,
+    current: template,
+  );
 
   void _moveTemplate(WeekTemplate template, int weekday, int startMinute) {
     final timeline = context.read<PlanController>().timeline!;
-    final maxStart = (timeline.visibleEnd - template.duration)
-        .clamp(timeline.visibleStart, timeline.visibleEnd - 1) as int;
+    final maxStart =
+        (timeline.visibleEnd - template.duration).clamp(
+              timeline.visibleStart,
+              timeline.visibleEnd - 1,
+            )
+            as int;
     final adjustedStart =
         startMinute.clamp(timeline.visibleStart, maxStart) as int;
     if (!_canPlaceTemplate(
@@ -486,11 +494,12 @@ class _PlanEditorPageState extends State<PlanEditorPage> {
 
   Future<void> _save() async {
     if (_title.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter a plan title')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Enter a plan title')));
       return;
     }
+    final controller = context.read<PlanController>();
     final plan = Plan(
       id: _planId,
       title: _title.text.trim(),
@@ -498,8 +507,11 @@ class _PlanEditorPageState extends State<PlanEditorPage> {
       endDate: _end,
       repeatsWeekly: _repeats,
       createdAt: widget.plan?.createdAt ?? DateTime.now(),
+      status: widget.plan?.status ?? PlanLifecycleStatus.active,
+      finishedAt: widget.plan?.finishedAt,
+      statisticsFinalizedAt: widget.plan?.statisticsFinalizedAt,
+      timelineSnapshot: widget.plan?.timelineSnapshot ?? controller.timeline,
     );
-    final controller = context.read<PlanController>();
     try {
       await controller.savePlan(plan, _templates);
       _markSavedAndExit();
@@ -512,7 +524,8 @@ class _PlanEditorPageState extends State<PlanEditorPage> {
         builder: (dialogContext) => AlertDialog(
           title: const Text('Date range conflict'),
           content: Text(
-              'This overlaps with “${error.conflicts.map((item) => item.title).join(', ')}”.'),
+            'This overlaps with “${error.conflicts.map((item) => item.title).join(', ')}”.',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, false),
@@ -554,39 +567,38 @@ class _PlanDetails extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
-        child: Column(
+    padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+    child: Column(
+      children: [
+        TextField(
+          controller: title,
+          decoration: const InputDecoration(labelText: 'Plan title (required)'),
+        ),
+        Row(
           children: [
-            TextField(
-              controller: title,
-              decoration:
-                  const InputDecoration(labelText: 'Plan title (required)'),
+            Expanded(
+              child: TextButton(
+                onPressed: onStart,
+                child: Text('Start ${DateFormat('yy/M/d').format(start)}'),
+              ),
             ),
-            Row(
-              children: [
-                Expanded(
-                  child: TextButton(
-                    onPressed: onStart,
-                    child: Text('Start ${DateFormat('yy/M/d').format(start)}'),
-                  ),
-                ),
-                Expanded(
-                  child: TextButton(
-                    onPressed: onEnd,
-                    child: Text('End ${DateFormat('yy/M/d').format(end)}'),
-                  ),
-                ),
-              ],
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Repeat weekly'),
-              value: repeats,
-              onChanged: onRepeat,
+            Expanded(
+              child: TextButton(
+                onPressed: onEnd,
+                child: Text('End ${DateFormat('yy/M/d').format(end)}'),
+              ),
             ),
           ],
         ),
-      );
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Repeat weekly'),
+          value: repeats,
+          onChanged: onRepeat,
+        ),
+      ],
+    ),
+  );
 }
 
 class _TemplateWeekTimeline extends StatelessWidget {
@@ -605,50 +617,47 @@ class _TemplateWeekTimeline extends StatelessWidget {
   final ValueChanged<WeekTemplate> onEdit;
   final ValueChanged<WeekTemplate> onActions;
   final void Function(WeekTemplate template, int weekday, int startMinute)
-      onMove;
+  onMove;
 
   @override
   Widget build(BuildContext context) => SingleChildScrollView(
-        key: const ValueKey('template-week-vertical-scroll'),
-        child: SingleChildScrollView(
-          key: const ValueKey('template-week-horizontal-scroll'),
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: List.generate(
-              7,
-              (index) {
-                final weekday = index + 1;
-                return SizedBox(
-                  width: 188,
-                  child: Column(
-                    children: [
-                      Text(
-                        _weekday(weekday),
-                        style: Theme.of(context).textTheme.titleSmall,
-                      ),
-                      const SizedBox(height: 8),
-                      _TemplateDayAxis(
-                        key: ValueKey('template-day-axis-$weekday'),
-                        weekday: weekday,
-                        timeline: timeline,
-                        templates: templates
-                            .where((item) => item.weekday == weekday)
-                            .toList(),
-                        onCreate: onCreate,
-                        onEdit: onEdit,
-                        onActions: onActions,
-                        onMove: onMove,
-                      ),
-                    ],
-                  ),
-                );
-              },
+    key: const ValueKey('template-week-vertical-scroll'),
+    child: SingleChildScrollView(
+      key: const ValueKey('template-week-horizontal-scroll'),
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: List.generate(7, (index) {
+          final weekday = index + 1;
+          return SizedBox(
+            width: 188,
+            child: Column(
+              children: [
+                Text(
+                  _weekday(weekday),
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                const SizedBox(height: 8),
+                _TemplateDayAxis(
+                  key: ValueKey('template-day-axis-$weekday'),
+                  weekday: weekday,
+                  timeline: timeline,
+                  templates: templates
+                      .where((item) => item.weekday == weekday)
+                      .toList(),
+                  onCreate: onCreate,
+                  onEdit: onEdit,
+                  onActions: onActions,
+                  onMove: onMove,
+                ),
+              ],
             ),
-          ),
-        ),
-      );
+          );
+        }),
+      ),
+    ),
+  );
 }
 
 class _TemplateDayAxis extends StatelessWidget {
@@ -670,7 +679,7 @@ class _TemplateDayAxis extends StatelessWidget {
   final ValueChanged<WeekTemplate> onEdit;
   final ValueChanged<WeekTemplate> onActions;
   final void Function(WeekTemplate template, int weekday, int startMinute)
-      onMove;
+  onMove;
 
   static const _pixelsPerMinute = .46;
 
@@ -733,16 +742,13 @@ class _TemplateDayAxis extends StatelessWidget {
           label: isPrimary
               ? displayBlockName(segment.block!)
               : isGap
-                  ? segment.gap!.label ?? ''
-                  : '',
+              ? segment.gap!.label ?? ''
+              : '',
           subtitle:
               '${_formatMinute(segment.startMinute)}–${_formatMinute(segment.endMinute)}',
           color: isGap ? const Color(0xFFEEEAE5) : null,
-          onTap: () => onCreate(
-            weekday,
-            segment.startMinute,
-            segment.endMinute,
-          ),
+          onTap: () =>
+              onCreate(weekday, segment.startMinute, segment.endMinute),
         ),
       );
     }
@@ -758,10 +764,10 @@ class _TemplateDayAxis extends StatelessWidget {
     // instead of overflowing the measured card height.
     final height = actualHeight < 40 ? 40.0 : actualHeight - 4;
     _TemplateCard buildCard() => _TemplateCard(
-          event: item,
-          onEdit: () => onEdit(item),
-          onActions: () => onActions(item),
-        );
+      event: item,
+      onEdit: () => onEdit(item),
+      onActions: () => onActions(item),
+    );
     return Positioned(
       left: 8,
       right: 8,
@@ -799,71 +805,70 @@ class _TemplateSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Positioned(
-        left: 8,
-        right: 8,
-        top: top + 2,
-        height: height < 4 ? 2 : height - 4,
-        child: Material(
-          color: color ?? Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(16),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(16),
-            onTap: onTap,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                // A Gap/primary surface must not try to fit two text lines into
-                // a short real-time interval. It stays as one centred time line
-                // until the measured height is genuinely sufficient.
-                if (constraints.maxHeight < 56) {
-                  return Center(
-                    child: Text(
-                      subtitle,
+    left: 8,
+    right: 8,
+    top: top + 2,
+    height: height < 4 ? 2 : height - 4,
+    child: Material(
+      color: color ?? Theme.of(context).colorScheme.surface,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // A Gap/primary surface must not try to fit two text lines into
+            // a short real-time interval. It stays as one centred time line
+            // until the measured height is genuinely sufficient.
+            if (constraints.maxHeight < 56) {
+              return Center(
+                child: Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Color(0xFF88817A),
+                    fontSize: 10,
+                  ),
+                ),
+              );
+            }
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFF88817A),
+                      fontSize: 10,
+                    ),
+                  ),
+                  if (label.isNotEmpty)
+                    Text(
+                      label,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
                       style: const TextStyle(
-                        color: Color(0xFF88817A),
-                        fontSize: 10,
+                        color: Color(0xFF45413D),
+                        fontWeight: FontWeight.w600,
+                        fontSize: 11,
                       ),
                     ),
-                  );
-                }
-                return Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Color(0xFF88817A),
-                          fontSize: 10,
-                        ),
-                      ),
-                      if (label.isNotEmpty)
-                        Text(
-                          label,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Color(0xFF45413D),
-                            fontWeight: FontWeight.w600,
-                            fontSize: 11,
-                          ),
-                        ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
+                ],
+              ),
+            );
+          },
         ),
-      );
+      ),
+    ),
+  );
 }
 
 class _TemplateCard extends StatelessWidget {
@@ -879,95 +884,95 @@ class _TemplateCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-        color: _typeColor(event.type),
-        borderRadius: BorderRadius.circular(16),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onEdit,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final compact = constraints.maxHeight < 36;
-              final showDetails = constraints.maxHeight >= 56;
-              final showMenu = constraints.maxHeight >= 36;
-              if (compact) {
-                return Center(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
-                    child: Text(
-                      event.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF45413D),
-                        fontSize: 11,
-                      ),
+    color: _typeColor(event.type),
+    borderRadius: BorderRadius.circular(16),
+    clipBehavior: Clip.antiAlias,
+    child: InkWell(
+      onTap: onEdit,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxHeight < 36;
+          final showDetails = constraints.maxHeight >= 56;
+          final showMenu = constraints.maxHeight >= 36;
+          if (compact) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: Text(
+                  event.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF45413D),
+                    fontSize: 11,
+                  ),
+                ),
+              ),
+            );
+          }
+          return Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: 8,
+              vertical: showDetails ? 4 : 0,
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: showDetails
+                      ? Column(
+                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _templateTitle(event, 12),
+                            Text(
+                              '${_formatMinute(event.startMinute)}–${_formatMinute(event.endMinute)}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Color(0xFF77716B),
+                                fontSize: 10,
+                              ),
+                            ),
+                          ],
+                        )
+                      : _templateTitle(event, 11),
+                ),
+                if (showMenu)
+                  SizedBox(
+                    width: 26,
+                    height: 26,
+                    child: IconButton(
+                      padding: EdgeInsets.zero,
+                      visualDensity: VisualDensity.compact,
+                      iconSize: 17,
+                      tooltip: 'More actions',
+                      onPressed: onActions,
+                      icon: const Icon(Icons.more_horiz),
                     ),
                   ),
-                );
-              }
-              return Padding(
-                padding: EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: showDetails ? 4 : 0,
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Expanded(
-                      child: showDetails
-                          ? Column(
-                              mainAxisSize: MainAxisSize.min,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                _templateTitle(event, 12),
-                                Text(
-                                  '${_formatMinute(event.startMinute)}–${_formatMinute(event.endMinute)}',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: Color(0xFF77716B),
-                                    fontSize: 10,
-                                  ),
-                                ),
-                              ],
-                            )
-                          : _templateTitle(event, 11),
-                    ),
-                    if (showMenu)
-                      SizedBox(
-                        width: 26,
-                        height: 26,
-                        child: IconButton(
-                          padding: EdgeInsets.zero,
-                          visualDensity: VisualDensity.compact,
-                          iconSize: 17,
-                          tooltip: 'More actions',
-                          onPressed: onActions,
-                          icon: const Icon(Icons.more_horiz),
-                        ),
-                      ),
-                  ],
-                ),
-              );
-            },
-          ),
-        ),
-      );
+              ],
+            ),
+          );
+        },
+      ),
+    ),
+  );
 }
 
 Widget _templateTitle(WeekTemplate event, double fontSize) => Text(
-      event.title,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: TextStyle(
-        fontWeight: FontWeight.w700,
-        color: const Color(0xFF45413D),
-        fontSize: fontSize,
-      ),
-    );
+  event.title,
+  maxLines: 1,
+  overflow: TextOverflow.ellipsis,
+  style: TextStyle(
+    fontWeight: FontWeight.w700,
+    color: const Color(0xFF45413D),
+    fontSize: fontSize,
+  ),
+);
 
 class _TimeButton extends StatelessWidget {
   const _TimeButton({
@@ -982,9 +987,9 @@ class _TimeButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => TextButton(
-        onPressed: onTap,
-        child: Text('$label ${_formatMinute(minute)}'),
-      );
+    onPressed: onTap,
+    child: Text('$label ${_formatMinute(minute)}'),
+  );
 }
 
 Future<int?> _timePicker(BuildContext context, int minute) =>
@@ -999,7 +1004,7 @@ String _weekday(int weekday) =>
     const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][weekday - 1];
 
 Color _typeColor(PlanType type) => switch (type) {
-      PlanType.task => const Color(0xFFDCE4EA),
-      PlanType.buffer => const Color(0xFFEEEAE5),
-      PlanType.fixed => const Color(0xFFE5DFE9),
-    };
+  PlanType.task => const Color(0xFFDCE4EA),
+  PlanType.buffer => const Color(0xFFEEEAE5),
+  PlanType.fixed => const Color(0xFFE5DFE9),
+};

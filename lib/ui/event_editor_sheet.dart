@@ -17,20 +17,19 @@ Future<void> showEventEditorSheet(
   required EventEditorMode mode,
   PlanItem? source,
   required Future<void> Function(EventEditorDraft draft) onSave,
-}) =>
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (_) => _EventEditorSheet(
-        date: date,
-        initialStart: initialStart,
-        initialEnd: initialEnd,
-        mode: mode,
-        source: source,
-        onSave: onSave,
-      ),
-    );
+}) => showModalBottomSheet<void>(
+  context: context,
+  isScrollControlled: true,
+  useSafeArea: true,
+  builder: (_) => _EventEditorSheet(
+    date: date,
+    initialStart: initialStart,
+    initialEnd: initialEnd,
+    mode: mode,
+    source: source,
+    onSave: onSave,
+  ),
+);
 
 enum EventEditorMode { create, edit, copy }
 
@@ -98,10 +97,10 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
   }
 
   String get _heading => switch (widget.mode) {
-        EventEditorMode.create => 'New event',
-        EventEditorMode.edit => 'Edit event',
-        EventEditorMode.copy => 'Copy event',
-      };
+    EventEditorMode.create => 'New event',
+    EventEditorMode.edit => 'Edit event',
+    EventEditorMode.copy => 'Copy event',
+  };
 
   Future<void> _chooseTime({required bool start}) async {
     final picked = await showTimeWheelPicker(
@@ -173,7 +172,7 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
               const SizedBox(height: 14),
               TextField(
                 controller: _title,
-                autofocus: true,
+                autofocus: widget.mode != EventEditorMode.copy,
                 decoration: const InputDecoration(labelText: 'Event name'),
               ),
               const SizedBox(height: 10),
@@ -200,9 +199,7 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                 child: TextButton.icon(
                   onPressed: _chooseDate,
                   icon: const Icon(Icons.calendar_today_outlined, size: 17),
-                  label: Text(
-                    '${_date.year}/${_date.month}/${_date.day}',
-                  ),
+                  label: Text('${_date.year}/${_date.month}/${_date.day}'),
                 ),
               ),
               const SizedBox(height: 8),
@@ -238,10 +235,8 @@ class _TimeButton extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => TextButton(
-        onPressed: onTap,
-        child: Text('$label ${_clock(minute)}'),
-      );
+  Widget build(BuildContext context) =>
+      TextButton(onPressed: onTap, child: Text('$label ${_clock(minute)}'));
 }
 
 String _clock(int minute) =>

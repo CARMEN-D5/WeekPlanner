@@ -1,3 +1,5 @@
+import 'timeline.dart';
+
 enum PlanType { task, buffer, fixed }
 
 enum PlanStatus { pending, completed, cancelled }
@@ -15,6 +17,7 @@ class Plan {
     this.status = PlanLifecycleStatus.active,
     this.finishedAt,
     this.statisticsFinalizedAt,
+    this.timelineSnapshot,
   });
   final String id;
   final String title;
@@ -25,6 +28,7 @@ class Plan {
   final PlanLifecycleStatus status;
   final DateTime? finishedAt;
   final DateTime? statisticsFinalizedAt;
+  final TimelineModel? timelineSnapshot;
 
   PlanLifecycleStatus statusAt(DateTime value) {
     if (status == PlanLifecycleStatus.archived) {
@@ -50,14 +54,15 @@ class Plan {
 
 /// A weekly recurrence record. Its location is expressed only by minutes.
 class WeekTemplate {
-  const WeekTemplate(
-      {required this.id,
-      required this.planId,
-      required this.title,
-      required this.weekday,
-      required this.type,
-      required this.startMinute,
-      required this.endMinute});
+  const WeekTemplate({
+    required this.id,
+    required this.planId,
+    required this.title,
+    required this.weekday,
+    required this.type,
+    required this.startMinute,
+    required this.endMinute,
+  });
   final String id;
   final String planId;
   final String title;
@@ -111,24 +116,32 @@ class PlanItem {
     String? compensatedById,
     DateTime? completedAt,
     bool clearCompletion = false,
-  }) =>
-      PlanItem(
-        id: id,
-        title: title ?? this.title,
-        date: date ?? this.date,
-        type: type ?? this.type,
-        status: status ?? this.status,
-        startMinute: startMinute ?? this.startMinute,
-        endMinute: endMinute ?? this.endMinute,
-        planId: planId,
-        templateId: templateId,
-        compensatedById: compensatedById ?? this.compensatedById,
-        completedAt: clearCompletion ? null : completedAt ?? this.completedAt,
-        createdAt: createdAt,
-      );
+    bool clearCompensation = false,
+  }) => PlanItem(
+    id: id,
+    title: title ?? this.title,
+    date: date ?? this.date,
+    type: type ?? this.type,
+    status: status ?? this.status,
+    startMinute: startMinute ?? this.startMinute,
+    endMinute: endMinute ?? this.endMinute,
+    planId: planId,
+    templateId: templateId,
+    compensatedById: clearCompensation
+        ? null
+        : compensatedById ?? this.compensatedById,
+    completedAt: clearCompletion ? null : completedAt ?? this.completedAt,
+    createdAt: createdAt,
+  );
 }
 
 class PlanConflictException implements Exception {
   const PlanConflictException(this.conflicts);
   final List<Plan> conflicts;
+}
+
+class TimelineTemplateConflict {
+  const TimelineTemplateConflict({required this.plan, required this.template});
+  final Plan plan;
+  final WeekTemplate template;
 }

@@ -6,7 +6,6 @@ import 'package:provider/provider.dart';
 
 import '../domain/plan_item.dart';
 import '../domain/timeline.dart';
-import '../domain/timeline_render.dart';
 import '../state/plan_controller.dart';
 import 'event_editor_sheet.dart';
 import 'plan_editor_page.dart';
@@ -65,17 +64,24 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
     final date = dayState.selectedDate;
     final timeline = dayState.timeline;
     final plan = _planForDate(dayState.plans, date);
+    final currentPlan = _planForDate(dayState.plans, controller.systemToday);
+    final displayTimeline = plan?.timelineSnapshot ?? timeline;
 
     return Column(
       children: [
         _Header(
           date: date,
           view: _view,
-          plan: plan,
+          plan: currentPlan,
+          systemToday: controller.systemToday,
           onBack: () => controller.changeDate(_moveDate(date, -1)),
           onForward: () => controller.changeDate(_moveDate(date, 1)),
+          onToday: controller.jumpToToday,
+          isToday: _sameDay(date, controller.systemToday),
           onPlanTap: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => PlanEditorPage(plan: plan)),
+            MaterialPageRoute(
+              builder: (_) => PlanEditorPage(plan: currentPlan),
+            ),
           ),
         ),
         Padding(
@@ -93,50 +99,51 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
                 child: dayState.isLoading
                     ? const Center(child: CircularProgressIndicator())
                     : !dayState.isReady
-                        ? _TimelineLoadError(
-                            onRetry: () => controller.loadDay(date))
-                        : switch (_view) {
-                            _PlannerView.day => _DayView(
-                                date: date,
-                                timeline: timeline!,
-                                items: dayState.items
-                                    .where((item) => _sameDay(item.date, date))
-                                    .toList(),
-                                onCreate: (start, end) =>
-                                    _eventSheet(date, start, end),
-                                onEdit: (item) => _eventSheet(
-                                  item.date,
-                                  item.startMinute,
-                                  item.endMinute,
-                                  current: item,
-                                ),
-                                onActions: _eventActions,
-                              ),
-                            _PlannerView.week => _WeekView(
-                                date: date,
-                                timeline: timeline!,
-                                itemsForDay: controller.itemsForDay,
-                                onAdd: (day, start, end) =>
-                                    _eventSheet(day, start, end),
-                                onEdit: (item) => _eventSheet(
-                                  item.date,
-                                  item.startMinute,
-                                  item.endMinute,
-                                  current: item,
-                                ),
-                                onActions: _eventActions,
-                              ),
-                            _PlannerView.month => _MonthView(
-                                selected: date,
-                                itemsForDay: controller.itemsForDay,
-                                onSelect: (day) async {
-                                  await controller.changeDate(day);
-                                  if (mounted) {
-                                    setState(() => _view = _PlannerView.day);
-                                  }
-                                },
-                              ),
+                    ? _TimelineLoadError(
+                        onRetry: () => controller.loadDay(date),
+                      )
+                    : switch (_view) {
+                        _PlannerView.day => _DayView(
+                          date: date,
+                          timeline: displayTimeline!,
+                          items: dayState.items
+                              .where((item) => _sameDay(item.date, date))
+                              .toList(),
+                          onCreate: (start, end) =>
+                              _eventSheet(date, start, end),
+                          onEdit: (item) => _eventSheet(
+                            item.date,
+                            item.startMinute,
+                            item.endMinute,
+                            current: item,
+                          ),
+                          onActions: _eventActions,
+                        ),
+                        _PlannerView.week => _WeekView(
+                          date: date,
+                          timeline: displayTimeline!,
+                          itemsForDay: controller.itemsForDay,
+                          onAdd: (day, start, end) =>
+                              _eventSheet(day, start, end),
+                          onEdit: (item) => _eventSheet(
+                            item.date,
+                            item.startMinute,
+                            item.endMinute,
+                            current: item,
+                          ),
+                          onActions: _eventActions,
+                        ),
+                        _PlannerView.month => _MonthView(
+                          selected: date,
+                          itemsForDay: controller.itemsForDay,
+                          onSelect: (day) async {
+                            await controller.changeDate(day);
+                            if (mounted) {
+                              setState(() => _view = _PlannerView.day);
+                            }
                           },
+                        ),
+                      },
               ),
               if (controller.isChangingDate)
                 const Positioned(
@@ -153,10 +160,10 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
   }
 
   DateTime _moveDate(DateTime date, int amount) => switch (_view) {
-        _PlannerView.day => date.add(Duration(days: amount)),
-        _PlannerView.week => date.add(Duration(days: amount * 7)),
-        _PlannerView.month => DateTime(date.year, date.month + amount, 1),
-      };
+    _PlannerView.day => date.add(Duration(days: amount)),
+    _PlannerView.week => date.add(Duration(days: amount * 7)),
+    _PlannerView.month => DateTime(date.year, date.month + amount, 1),
+  };
 
   void _eventSheet(
     DateTime date,
@@ -177,8 +184,8 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
       mode: current != null
           ? EventEditorMode.edit
           : copyFrom != null
-              ? EventEditorMode.copy
-              : EventEditorMode.create,
+          ? EventEditorMode.copy
+          : EventEditorMode.create,
       source: source,
       onSave: (draft) => current == null
           ? controller.addItem(
@@ -233,8 +240,12 @@ class _TodayPageState extends State<TodayPage> with WidgetsBindingObserver {
       case _EventAction.edit:
         _eventSheet(item.date, item.startMinute, item.endMinute, current: item);
       case _EventAction.copy:
-        _eventSheet(item.date, item.startMinute, item.endMinute,
-            copyFrom: item);
+        _eventSheet(
+          item.date,
+          item.startMinute,
+          item.endMinute,
+          copyFrom: item,
+        );
       case _EventAction.delete:
         final confirmed = await showDialog<bool>(
           context: context,
@@ -267,23 +278,23 @@ class _TimelineLoadError extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.event_busy_outlined, size: 34),
-              const SizedBox(height: 10),
-              const Text('Unable to load today’s timeline'),
-              const SizedBox(height: 10),
-              OutlinedButton(
-                onPressed: () => onRetry(),
-                child: const Text('Retry'),
-              ),
-            ],
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.event_busy_outlined, size: 34),
+          const SizedBox(height: 10),
+          const Text('Unable to load today’s timeline'),
+          const SizedBox(height: 10),
+          OutlinedButton(
+            onPressed: () => onRetry(),
+            child: const Text('Retry'),
           ),
-        ),
-      );
+        ],
+      ),
+    ),
+  );
 }
 
 class _Header extends StatelessWidget {
@@ -291,16 +302,22 @@ class _Header extends StatelessWidget {
     required this.date,
     required this.view,
     required this.plan,
+    required this.systemToday,
     required this.onBack,
     required this.onForward,
+    required this.onToday,
+    required this.isToday,
     required this.onPlanTap,
   });
 
   final DateTime date;
   final _PlannerView view;
   final Plan? plan;
+  final DateTime systemToday;
   final VoidCallback onBack;
   final VoidCallback onForward;
+  final VoidCallback onToday;
+  final bool isToday;
   final VoidCallback onPlanTap;
 
   @override
@@ -314,12 +331,12 @@ class _Header extends StatelessWidget {
     };
     final remaining = plan == null
         ? null
-        : _day(plan!.endDate).difference(_day(date)).inDays + 1;
+        : _day(plan!.endDate).difference(_day(systemToday)).inDays + 1;
     final status = remaining == null
         ? null
         : remaining <= 1
-            ? 'Due today'
-            : '$remaining days left';
+        ? 'Due today'
+        : '$remaining days left';
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 18, 16, 12),
@@ -352,9 +369,7 @@ class _Header extends StatelessWidget {
                           plan?.title ?? 'No active plan',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleLarge
+                          style: Theme.of(context).textTheme.titleLarge
                               ?.copyWith(
                                 color: Theme.of(context).colorScheme.onSurface,
                                 fontWeight: FontWeight.w600,
@@ -366,8 +381,9 @@ class _Header extends StatelessWidget {
                               ? 'Tap to create a weekly plan'
                               : '${DateFormat('MMM d').format(plan!.startDate)} – ${DateFormat('MMM d').format(plan!.endDate)}',
                           style: TextStyle(
-                            color:
-                                Theme.of(context).colorScheme.onSurfaceVariant,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
                             fontSize: 12,
                           ),
                         ),
@@ -412,6 +428,16 @@ class _Header extends StatelessWidget {
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
+              ),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 160),
+                child: isToday
+                    ? const SizedBox(width: 48)
+                    : TextButton(
+                        key: const ValueKey('jump-to-today'),
+                        onPressed: onToday,
+                        child: const Text('Today'),
+                      ),
               ),
               IconButton(
                 onPressed: onForward,
@@ -464,12 +490,12 @@ class _ViewTabs extends StatelessWidget {
                           labels[item]!,
                           style: TextStyle(
                             color: value == item
-                                ? Theme.of(context)
-                                    .colorScheme
-                                    .onSecondaryContainer
-                                : Theme.of(context)
-                                    .colorScheme
-                                    .onSurfaceVariant,
+                                ? Theme.of(
+                                    context,
+                                  ).colorScheme.onSecondaryContainer
+                                : Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -634,8 +660,10 @@ class _MonthView extends StatelessWidget {
   Widget build(BuildContext context) {
     final first = DateTime(selected.year, selected.month, 1);
     final gridStart = first.subtract(Duration(days: first.weekday - 1));
-    final dates =
-        List.generate(42, (index) => gridStart.add(Duration(days: index)));
+    final dates = List.generate(
+      42,
+      (index) => gridStart.add(Duration(days: index)),
+    );
     return Column(
       children: [
         const Padding(
@@ -662,9 +690,9 @@ class _MonthView extends StatelessWidget {
             ),
             itemBuilder: (context, index) {
               final day = dates[index];
-              final entries = itemsForDay(day)
-                  .where((item) => item.countsForCompletion)
-                  .toList();
+              final entries = itemsForDay(
+                day,
+              ).where((item) => item.countsForCompletion).toList();
               final done = entries
                   .where((item) => item.status == PlanStatus.completed)
                   .length;
@@ -683,8 +711,9 @@ class _MonthView extends StatelessWidget {
                     color: day.month == selected.month
                         ? statusColor.withValues(alpha: .34)
                         : const Color(0xFFF0EFEC),
-                    border:
-                        Border.all(color: statusColor.withValues(alpha: .5)),
+                    border: Border.all(
+                      color: statusColor.withValues(alpha: .5),
+                    ),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Column(
@@ -693,8 +722,10 @@ class _MonthView extends StatelessWidget {
                       Text('${day.day}'),
                       const Spacer(),
                       if (entries.isNotEmpty)
-                        Text('$done/${entries.length}',
-                            style: const TextStyle(fontSize: 11)),
+                        Text(
+                          '$done/${entries.length}',
+                          style: const TextStyle(fontSize: 11),
+                        ),
                       Align(
                         alignment: Alignment.centerRight,
                         child: Icon(Icons.circle, size: 7, color: statusColor),

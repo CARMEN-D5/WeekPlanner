@@ -74,12 +74,14 @@ class TimelineModel {
       final previous = sorted[index];
       final next = sorted[index + 1];
       if (next.startMinute > previous.endMinute) {
-        result.add(TimelineGap(
-          afterOrder: previous.order,
-          startMinute: previous.endMinute,
-          endMinute: next.startMinute,
-          label: gapLabels[previous.order],
-        ));
+        result.add(
+          TimelineGap(
+            afterOrder: previous.order,
+            startMinute: previous.endMinute,
+            endMinute: next.startMinute,
+            label: gapLabels[previous.order],
+          ),
+        );
       }
     }
     return result;
@@ -95,4 +97,7 @@ class TimelineModel {
     }
     return null;
   }
+
+  bool containsRange(int startMinute, int endMinute) =>
+      startMinute >= visibleStart && endMinute <= visibleEnd;
 }

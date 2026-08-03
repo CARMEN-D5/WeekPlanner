@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../domain/timeline.dart';
 import '../state/plan_controller.dart';
+import 'plan_editor_page.dart';
 import 'time_wheel_picker.dart';
 import 'timeline_labels.dart';
 
@@ -14,9 +15,7 @@ class TimelineEditorPage extends StatelessWidget {
     final controller = context.watch<PlanController>();
     final timeline = controller.timeline;
     if (timeline == null) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     return Scaffold(
       appBar: AppBar(title: const Text('Timeline settings')),
@@ -24,7 +23,8 @@ class TimelineEditorPage extends StatelessWidget {
         padding: const EdgeInsets.all(20),
         children: [
           const Text(
-              'Customize the three primary blocks and their start/end times. Gaps are generated automatically.'),
+            'Customize the three primary blocks and their start/end times. Gaps are generated automatically.',
+          ),
           const SizedBox(height: 12),
           for (final block in timeline.blocks) ...[
             Card(
@@ -38,7 +38,9 @@ class TimelineEditorPage extends StatelessWidget {
                 onTap: () => _editBlock(context, timeline, block),
               ),
             ),
-            ...timeline.segmentsFor(block).map(
+            ...timeline
+                .segmentsFor(block)
+                .map(
                   (segment) => Padding(
                     padding: const EdgeInsets.only(left: 24),
                     child: ListTile(
@@ -48,7 +50,8 @@ class TimelineEditorPage extends StatelessWidget {
                         '${_clock(segment.startMinute)}–${_clock(segment.endMinute)}',
                       ),
                       subtitle: const Text(
-                          'Long-press: split / merge with the next segment'),
+                        'Long-press: split / merge with the next segment',
+                      ),
                       onLongPress: () => _segmentActions(context, segment),
                     ),
                   ),
@@ -152,8 +155,10 @@ class TimelineEditorPage extends StatelessWidget {
                       if (!_valid(blocks)) {
                         ScaffoldMessenger.of(sheetContext).showSnackBar(
                           const SnackBar(
-                              content: Text(
-                                  'The three blocks cannot overlap, and end must be after start.')),
+                            content: Text(
+                              'The three blocks cannot overlap, and end must be after start.',
+                            ),
+                          ),
                         );
                         return;
                       }
@@ -168,14 +173,19 @@ class TimelineEditorPage extends StatelessWidget {
                           endMinute: end,
                         ),
                       ];
-                      await controller.saveTimeline(
-                        TimelineModel(
-                          blocks: blocks,
-                          segments: segments,
-                          gapLabels: timeline.gapLabels,
-                        ),
+                      final proposed = TimelineModel(
+                        blocks: blocks,
+                        segments: segments,
+                        gapLabels: timeline.gapLabels,
                       );
-                      if (sheetContext.mounted) Navigator.pop(sheetContext);
+                      final saved = await _saveTimelineChange(
+                        sheetContext,
+                        controller,
+                        proposed,
+                      );
+                      if (saved && sheetContext.mounted) {
+                        Navigator.pop(sheetContext);
+                      }
                     },
                     child: const Text('Save'),
                   ),
@@ -188,11 +198,7 @@ class TimelineEditorPage extends StatelessWidget {
     );
   }
 
-  void _editGap(
-    BuildContext context,
-    TimelineModel timeline,
-    TimelineGap gap,
-  ) {
+  void _editGap(BuildContext context, TimelineModel timeline, TimelineGap gap) {
     var label = gap.label ?? '';
     final controller = context.read<PlanController>();
     var start = gap.startMinute;
@@ -214,8 +220,9 @@ class TimelineEditorPage extends StatelessWidget {
               children: [
                 TextFormField(
                   initialValue: label,
-                  decoration:
-                      const InputDecoration(labelText: 'Gap name (optional)'),
+                  decoration: const InputDecoration(
+                    labelText: 'Gap name (optional)',
+                  ),
                   onChanged: (value) => label = value,
                 ),
                 Row(
@@ -269,42 +276,50 @@ class TimelineEditorPage extends StatelessWidget {
                       if (!_valid(blocks)) {
                         ScaffoldMessenger.of(sheetContext).showSnackBar(
                           const SnackBar(
-                              content: Text(
-                                  'The Gap conflicts with an adjacent block.')),
+                            content: Text(
+                              'The Gap conflicts with an adjacent block.',
+                            ),
+                          ),
                         );
                         return;
                       }
-                      final segments = timeline.segments
-                          .where(
-                            (segment) =>
-                                segment.blockId != before.id &&
-                                segment.blockId != after.id,
-                          )
-                          .toList()
-                        ..addAll([
-                          TimelineSegment(
-                            id: '${before.id}_${DateTime.now().microsecondsSinceEpoch}',
-                            blockId: before.id,
-                            startMinute: before.startMinute,
-                            endMinute: start,
-                          ),
-                          TimelineSegment(
-                            id: '${after.id}_${DateTime.now().microsecondsSinceEpoch}',
-                            blockId: after.id,
-                            startMinute: end,
-                            endMinute: after.endMinute,
-                          ),
-                        ]);
+                      final segments =
+                          timeline.segments
+                              .where(
+                                (segment) =>
+                                    segment.blockId != before.id &&
+                                    segment.blockId != after.id,
+                              )
+                              .toList()
+                            ..addAll([
+                              TimelineSegment(
+                                id: '${before.id}_${DateTime.now().microsecondsSinceEpoch}',
+                                blockId: before.id,
+                                startMinute: before.startMinute,
+                                endMinute: start,
+                              ),
+                              TimelineSegment(
+                                id: '${after.id}_${DateTime.now().microsecondsSinceEpoch}',
+                                blockId: after.id,
+                                startMinute: end,
+                                endMinute: after.endMinute,
+                              ),
+                            ]);
                       final labels = Map<int, String>.of(timeline.gapLabels)
                         ..[gap.afterOrder] = label.trim();
-                      await controller.saveTimeline(
-                        TimelineModel(
-                          blocks: blocks,
-                          segments: segments,
-                          gapLabels: labels,
-                        ),
+                      final proposed = TimelineModel(
+                        blocks: blocks,
+                        segments: segments,
+                        gapLabels: labels,
                       );
-                      if (sheetContext.mounted) Navigator.pop(sheetContext);
+                      final saved = await _saveTimelineChange(
+                        sheetContext,
+                        controller,
+                        proposed,
+                      );
+                      if (saved && sheetContext.mounted) {
+                        Navigator.pop(sheetContext);
+                      }
                     },
                     child: const Text('Save Gap'),
                   ),
@@ -367,7 +382,101 @@ class TimelineEditorPage extends StatelessWidget {
     }
     return true;
   }
+
+  Future<bool> _saveTimelineChange(
+    BuildContext context,
+    PlanController controller,
+    TimelineModel proposed,
+  ) async {
+    if (controller.plans.isEmpty) {
+      await controller.saveTimeline(proposed);
+      return true;
+    }
+    final choice = await showDialog<_TimelineSaveChoice>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Apply timeline changes to existing plans?'),
+        content: const Text(
+          'Your primary time blocks have changed. Would you like to apply the new timeline ranges to existing plans?\n\nFinished plans are always left unchanged.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () =>
+                Navigator.pop(dialogContext, _TimelineSaveChoice.newPlansOnly),
+            child: const Text('Only future plans'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(
+              dialogContext,
+              _TimelineSaveChoice.activeAndUpcoming,
+            ),
+            child: const Text('Apply to existing plans'),
+          ),
+        ],
+      ),
+    );
+    if (choice == null) return false;
+    if (choice == _TimelineSaveChoice.newPlansOnly) {
+      await controller.saveTimeline(proposed);
+      return true;
+    }
+
+    final conflicts = await controller.timelineConflicts(proposed);
+    if (!context.mounted) return false;
+    if (conflicts.isNotEmpty) {
+      final review = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Some events fall outside the new timeline range.'),
+          content: SingleChildScrollView(
+            child: Text(
+              '${conflicts.length} events require attention:\n\n'
+              '${conflicts.take(8).map((conflict) => '${_weekday(conflict.template.weekday)} · ${conflict.template.title} · ${_clock(conflict.template.startMinute)}–${_clock(conflict.template.endMinute)}').join('\n')}'
+              '${conflicts.length > 8 ? '\n…and ${conflicts.length - 8} more' : ''}\n\n'
+              'Please update these events before applying the new timeline.',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel changes'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Review conflicts'),
+            ),
+          ],
+        ),
+      );
+      if (review == true && context.mounted) {
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => PlanEditorPage(plan: conflicts.first.plan),
+          ),
+        );
+      }
+      return false;
+    }
+    await controller.saveTimelineAndApplyToExisting(proposed);
+    return true;
+  }
 }
+
+enum _TimelineSaveChoice { newPlansOnly, activeAndUpcoming }
+
+String _weekday(int value) => const [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday',
+][value - 1];
 
 class _TimeButton extends StatelessWidget {
   const _TimeButton({
@@ -381,10 +490,8 @@ class _TimeButton extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => TextButton(
-        onPressed: onTap,
-        child: Text('$label ${_clock(value)}'),
-      );
+  Widget build(BuildContext context) =>
+      TextButton(onPressed: onTap, child: Text('$label ${_clock(value)}'));
 }
 
 Future<int?> _pickTime(BuildContext context, int value) =>

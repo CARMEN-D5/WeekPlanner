@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../state/plan_controller.dart';
 
 import 'history_page.dart';
 import 'settings_page.dart';
@@ -17,27 +20,32 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        body: SafeArea(child: _pages[_index]),
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: _index,
-          onDestinationSelected: (value) => setState(() => _index = value),
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.today_outlined),
-              selectedIcon: Icon(Icons.today),
-              label: 'Today',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.insights_outlined),
-              selectedIcon: Icon(Icons.insights),
-              label: 'History',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.tune_outlined),
-              selectedIcon: Icon(Icons.tune),
-              label: 'Settings',
-            ),
-          ],
+    body: SafeArea(child: _pages[_index]),
+    bottomNavigationBar: NavigationBar(
+      selectedIndex: _index,
+      onDestinationSelected: (value) {
+        setState(() => _index = value);
+        if (value == 1) {
+          context.read<PlanController>().refreshHistoryData();
+        }
+      },
+      destinations: const [
+        NavigationDestination(
+          icon: Icon(Icons.today_outlined),
+          selectedIcon: Icon(Icons.today),
+          label: 'Today',
         ),
-      );
+        NavigationDestination(
+          icon: Icon(Icons.insights_outlined),
+          selectedIcon: Icon(Icons.insights),
+          label: 'History',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.tune_outlined),
+          selectedIcon: Icon(Icons.tune),
+          label: 'Settings',
+        ),
+      ],
+    ),
+  );
 }
