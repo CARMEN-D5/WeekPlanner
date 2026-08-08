@@ -10,5 +10,12 @@ android { namespace 'com.cadence.weekplan'; compileSdk flutter.compileSdkVersion
     }
     kotlinOptions { jvmTarget = JavaVersion.VERSION_17.toString() }
     defaultConfig { applicationId 'com.cadence.weekplan'; minSdk flutter.minSdkVersion; targetSdk flutter.targetSdkVersion; versionCode flutter.versionCode; versionName flutter.versionName }
+    buildTypes {
+        release {
+            // Produces an installable internal-test APK. Replace this with a
+            // private upload/release keystore before publishing to Play.
+            signingConfig signingConfigs.debug
+        }
+    }
 }
 flutter { source '../..' }

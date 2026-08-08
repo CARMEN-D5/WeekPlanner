@@ -26,15 +26,15 @@ class AboutPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Version 0.1.0 (1)',
+                  'Version 0.2.1 (4)',
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
                 const SizedBox(height: 10),
                 Text(
                   '© 2026 WeekPlanner',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),

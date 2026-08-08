@@ -2,32 +2,49 @@ import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'config/supabase_config.dart';
 import 'data/plan_repository.dart';
+import 'data/profile_repository.dart';
+import 'services/auth_service.dart';
 import 'state/app_preferences.dart';
 import 'state/plan_controller.dart';
-import 'ui/app_shell.dart';
+import 'ui/auth/auth_gate.dart';
 import 'ui/brand_splash.dart';
+import 'ui/configuration_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   _enableDebugErrorLogging();
   Intl.defaultLocale = 'en_US';
   await initializeDateFormatting('en_US');
+  if (SupabaseConfig.isConfigured) {
+    await Supabase.initialize(
+      url: SupabaseConfig.projectUrl,
+      publishableKey: SupabaseConfig.publishableKey,
+    );
+  }
   // This object intentionally outlives every page, tab, loading state and
   // dialog. Keeping the provider above MaterialApp prevents descendants from
   // retaining a dependency on a provider that is being replaced mid-frame.
   final planController = PlanController(PlanRepository());
   planController.loadDay(DateTime.now());
-  runApp(
-    ChangeNotifierProvider(
+  Widget app = ChangeNotifierProvider(
       create: (_) => AppPreferences(),
       child: ChangeNotifierProvider.value(
         value: planController,
         child: const CadenceApp(),
       ),
-    ),
   );
+  if (SupabaseConfig.isConfigured) {
+    final client = Supabase.instance.client;
+    app = ChangeNotifierProvider(
+      create: (_) => AuthService(client, ProfileRepository(client)),
+      child: app,
+    );
+  }
+  runApp(app);
 }
 
 /// Keeps Flutter's normal red error screen intact while also sending the full
@@ -98,10 +115,7 @@ class CadenceApp extends StatelessWidget {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(
-              color: Color(0xFFA8B6C6),
-              width: 1.5,
-            ),
+            borderSide: const BorderSide(color: Color(0xFFA8B6C6), width: 1.5),
           ),
         ),
         switchTheme: SwitchThemeData(
@@ -153,7 +167,11 @@ class CadenceApp extends StatelessWidget {
       ),
       darkTheme: _cadenceDarkTheme(),
       themeMode: preferences.themeMode,
-      home: const BrandSplash(next: AppShell()),
+      home: BrandSplash(
+        next: SupabaseConfig.isConfigured
+            ? const AuthGate()
+            : const ConfigurationPage(),
+      ),
     );
   }
 }
